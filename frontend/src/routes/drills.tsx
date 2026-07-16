@@ -1,9 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Check, X, ArrowRight, Sparkles, Lightbulb } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, X, ArrowRight, Sparkles, Lightbulb, RotateCcw, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import {
+  checkDrillAnswer,
+  fetchDrillCategories,
+  fetchDrillSession,
+  type DrillCheckResult,
+} from "@/lib/api";
 
 export const Route = createFileRoute("/drills")({
   head: () => ({
@@ -14,32 +21,6 @@ export const Route = createFileRoute("/drills")({
   }),
   component: DrillsPage,
 });
-
-const categories = [
-  { key: "partitive", label: "Partitive", fi: "Partitiivi", mastery: 0.7 },
-  { key: "genitive", label: "Genitive", fi: "Genetiivi", mastery: 0.9 },
-  { key: "inessive", label: "Inessive", fi: "Inessiivi", mastery: 0.55, active: true },
-  { key: "elative", label: "Elative", fi: "Elatiivi", mastery: 0.4 },
-  { key: "illative", label: "Illative", fi: "Illatiivi", mastery: 0.35 },
-  { key: "adessive", label: "Adessive", fi: "Adessiivi", mastery: 0.6 },
-  { key: "ablative", label: "Ablative", fi: "Ablatiivi", mastery: 0.2 },
-  { key: "allative", label: "Allative", fi: "Allatiivi", mastery: 0.25 },
-  { key: "gradation", label: "Consonant gradation", fi: "Astevaihtelu", mastery: 0.5 },
-  { key: "harmony", label: "Vowel harmony", fi: "Vokaalisointu", mastery: 0.85 },
-  { key: "verb1", label: "Verb type 1", fi: "Verbityyppi 1", mastery: 0.95 },
-  { key: "verb3", label: "Verb type 3", fi: "Verbityyppi 3", mastery: 0.45 },
-];
-
-const prompt = {
-  base: "kirja",
-  gloss: "book",
-  target: "Inessive singular",
-  targetFi: "Inessiivi, yksikkö",
-  hint: "'in the book' — where something is inside",
-  answer: "kirjassa",
-  rule: "Inessive (-ssa / -ssä): location inside. Vowel harmony picks -ssa (back vowels) or -ssä (front vowels). 'kirja' → 'kirjassa'.",
-  example: "Sana on kirjassa. — The word is in the book.",
-};
 
 function Ring({ value }: { value: number }) {
   const r = 14;
@@ -64,20 +45,67 @@ function Ring({ value }: { value: number }) {
 }
 
 function DrillsPage() {
+  const [category, setCategory] = useState("partitive");
+  const [idx, setIdx] = useState(0);
   const [value, setValue] = useState("");
-  const [status, setStatus] = useState<"idle" | "correct" | "wrong">("idle");
+  const [result, setResult] = useState<DrillCheckResult | null>(null);
   const [showHint, setShowHint] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const queryClient = useQueryClient();
+
+  const { data: categories } = useQuery({
+    queryKey: ["drill-categories"],
+    queryFn: fetchDrillCategories,
+  });
+
+  const { data: session, refetch: newSession } = useQuery({
+    queryKey: ["drill-session", category],
+    queryFn: () => fetchDrillSession(category),
+    staleTime: Infinity,
+  });
+
+  const checkMutation = useMutation({
+    mutationFn: ({ itemId, answer }: { itemId: number; answer: string }) =>
+      checkDrillAnswer(itemId, answer),
+    onSuccess: (res) => {
+      setResult(res);
+      setStreak((s) => (res.correct ? s + 1 : 0));
+      queryClient.invalidateQueries({ queryKey: ["drill-categories"] });
+    },
+  });
+
+  const items = session?.items ?? [];
+  const item = items[idx];
+  const done = items.length > 0 && idx >= items.length;
+  const status = result === null ? "idle" : result.correct ? "correct" : "wrong";
+
+  // Reset the player whenever the category (and thus the session) changes.
+  useEffect(() => {
+    setIdx(0);
+    setValue("");
+    setResult(null);
+    setShowHint(false);
+    setStreak(0);
+  }, [category, session]);
 
   const check = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!value.trim()) return;
-    setStatus(value.trim().toLowerCase() === prompt.answer ? "correct" : "wrong");
+    if (!value.trim() || !item || checkMutation.isPending) return;
+    checkMutation.mutate({ itemId: item.id, answer: value });
   };
+
   const next = () => {
-    setStatus("idle");
+    setResult(null);
     setValue("");
     setShowHint(false);
+    setIdx((i) => i + 1);
   };
+
+  const restart = () => {
+    void newSession();
+  };
+
+  const activeMeta = categories?.find((c) => c.key === category);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
@@ -91,16 +119,17 @@ function DrillsPage() {
             </p>
           </div>
           <div className="hidden text-xs text-muted-foreground sm:block">
-            Session 3 of 5 · <span className="text-foreground">Inessive</span>
+            Practising <span className="text-foreground">{activeMeta?.label ?? category}</span>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {categories.map((c) => (
+          {(categories ?? []).map((c) => (
             <button
               key={c.key}
+              onClick={() => setCategory(c.key)}
               className={cn(
                 "canvas-card flex flex-col items-start gap-3 p-3 text-left transition-colors",
-                c.active && "border-brand-purple/60 ring-1 ring-brand-purple/40",
+                c.key === category && "border-brand-purple/60 ring-1 ring-brand-purple/40",
               )}
             >
               <div className="flex w-full items-center justify-between">
@@ -120,105 +149,140 @@ function DrillsPage() {
 
       {/* Player */}
       <div className="canvas-card p-6 md:p-10">
-        <div className="mb-6 flex items-center justify-between text-xs text-muted-foreground">
-          <span>Prompt 4 of 12</span>
-          <span>Streak 3</span>
-        </div>
-        <Progress value={(4 / 12) * 100} className="mb-8 h-1.5" />
-
-        <div className="text-center">
-          <div className="text-xs font-medium uppercase tracking-wider text-brand-purple">
-            {prompt.target} · {prompt.targetFi}
-          </div>
-          <div className="mt-3 font-display text-5xl font-semibold tracking-tight md:text-6xl">
-            {prompt.base}
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">"{prompt.gloss}"</div>
-        </div>
-
-        <form onSubmit={check} className="mx-auto mt-10 max-w-md">
-          <div
-            className={cn(
-              "rounded-2xl border bg-background p-1 transition-colors",
-              status === "idle" && "border-border focus-within:border-brand-purple",
-              status === "correct" && "border-success ring-2 ring-success/40",
-              status === "wrong" && "border-destructive ring-2 ring-destructive/40",
-            )}
-          >
-            <input
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              disabled={status !== "idle"}
-              autoFocus
-              placeholder="Type the inflected form…"
-              className="w-full bg-transparent px-4 py-3 text-center font-display text-2xl outline-none placeholder:text-base placeholder:font-sans placeholder:text-muted-foreground"
-            />
-          </div>
-          <div className="mt-4 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => setShowHint((v) => !v)}
-              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        {done ? (
+          <div className="py-10 text-center">
+            <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-purple/20 to-brand-green/20">
+              <Check className="size-6 text-brand-green" />
+            </div>
+            <h2 className="mt-4 font-display text-2xl font-semibold">Session complete</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {items.length} prompts done. Mistakes were added to your review deck.
+            </p>
+            <Button
+              onClick={restart}
+              className="mt-6 rounded-xl bg-gradient-to-br from-brand-purple to-brand-green text-white hover:opacity-95"
             >
-              <Lightbulb className="size-3.5" />
-              {showHint ? "Hide hint" : "Show hint"}
-            </button>
-            {status === "idle" ? (
-              <Button
-                type="submit"
-                className="rounded-xl bg-gradient-to-br from-brand-purple to-brand-green text-white hover:opacity-95"
-              >
-                Check <ArrowRight className="ml-1 size-4" />
-              </Button>
-            ) : (
-              <Button onClick={next} type="button" className="rounded-xl">
-                Next <ArrowRight className="ml-1 size-4" />
-              </Button>
-            )}
+              <RotateCcw className="mr-1.5 size-4" /> New session
+            </Button>
           </div>
-          {showHint && status === "idle" && (
-            <div className="mt-3 rounded-xl bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-              {prompt.hint}
+        ) : !item ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            Loading session…
+          </div>
+        ) : (
+          <>
+            <div className="mb-6 flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                Prompt {idx + 1} of {items.length}
+              </span>
+              <span>Streak {streak}</span>
             </div>
-          )}
-        </form>
+            <Progress value={(idx / items.length) * 100} className="mb-8 h-1.5" />
 
-        {status !== "idle" && (
-          <div
-            className={cn(
-              "mx-auto mt-8 max-w-xl overflow-hidden rounded-2xl border",
-              status === "correct"
-                ? "border-success/40 bg-success/10"
-                : "border-destructive/40 bg-destructive/10",
-            )}
-          >
-            <div className="flex items-center gap-2 px-4 py-3 text-sm font-semibold">
-              {status === "correct" ? (
-                <>
-                  <span className="grid size-6 place-items-center rounded-full bg-success text-success-foreground">
-                    <Check className="size-4" />
-                  </span>
-                  <span className="text-success">Oikein! Correct.</span>
-                </>
-              ) : (
-                <>
-                  <span className="grid size-6 place-items-center rounded-full bg-destructive text-destructive-foreground">
-                    <X className="size-4" />
-                  </span>
-                  <span className="text-destructive">Not quite. The correct form is <span className="font-mono">{prompt.answer}</span>.</span>
-                </>
-              )}
-            </div>
-            <div className="space-y-2 border-t border-inherit/40 px-4 py-3 text-sm">
-              <div className="flex items-start gap-2">
-                <Sparkles className="mt-0.5 size-4 shrink-0 text-brand-purple" />
-                <p className="leading-relaxed text-foreground/90">{prompt.rule}</p>
+            <div className="text-center">
+              <div className="text-xs font-medium uppercase tracking-wider text-brand-purple">
+                {item.target} · {item.target_fi}
               </div>
-              <p className="rounded-lg bg-background/60 px-3 py-2 text-xs italic text-muted-foreground">
-                {prompt.example}
-              </p>
+              <div className="mt-3 font-display text-5xl font-semibold tracking-tight md:text-6xl">
+                {item.base}
+              </div>
+              <div className="mt-1 text-sm text-muted-foreground">"{item.gloss}"</div>
             </div>
-          </div>
+
+            <form onSubmit={check} className="mx-auto mt-10 max-w-md">
+              <div
+                className={cn(
+                  "rounded-2xl border bg-background p-1 transition-colors",
+                  status === "idle" && "border-border focus-within:border-brand-purple",
+                  status === "correct" && "border-success ring-2 ring-success/40",
+                  status === "wrong" && "border-destructive ring-2 ring-destructive/40",
+                )}
+              >
+                <input
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  disabled={status !== "idle"}
+                  autoFocus
+                  placeholder="Type the inflected form…"
+                  className="w-full bg-transparent px-4 py-3 text-center font-display text-2xl outline-none placeholder:text-base placeholder:font-sans placeholder:text-muted-foreground"
+                />
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowHint((v) => !v)}
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Lightbulb className="size-3.5" />
+                  {showHint ? "Hide hint" : "Show hint"}
+                </button>
+                {status === "idle" ? (
+                  <Button
+                    type="submit"
+                    disabled={checkMutation.isPending}
+                    className="rounded-xl bg-gradient-to-br from-brand-purple to-brand-green text-white hover:opacity-95"
+                  >
+                    Check <ArrowRight className="ml-1 size-4" />
+                  </Button>
+                ) : (
+                  <Button onClick={next} type="button" className="rounded-xl">
+                    Next <ArrowRight className="ml-1 size-4" />
+                  </Button>
+                )}
+              </div>
+              {showHint && status === "idle" && item.hint && (
+                <div className="mt-3 rounded-xl bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                  {item.hint}
+                </div>
+              )}
+            </form>
+
+            {result && (
+              <div
+                className={cn(
+                  "mx-auto mt-8 max-w-xl overflow-hidden rounded-2xl border",
+                  result.correct
+                    ? "border-success/40 bg-success/10"
+                    : "border-destructive/40 bg-destructive/10",
+                )}
+              >
+                <div className="flex items-center gap-2 px-4 py-3 text-sm font-semibold">
+                  {result.correct ? (
+                    <>
+                      <span className="grid size-6 place-items-center rounded-full bg-success text-success-foreground">
+                        <Check className="size-4" />
+                      </span>
+                      <span className="text-success">Oikein! Correct.</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="grid size-6 place-items-center rounded-full bg-destructive text-destructive-foreground">
+                        <X className="size-4" />
+                      </span>
+                      <span className="text-destructive">
+                        Not quite. The correct form is{" "}
+                        <span className="font-mono">{result.answer}</span>.
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className="space-y-2 border-t border-inherit/40 px-4 py-3 text-sm">
+                  <div className="flex items-start gap-2">
+                    <Sparkles className="mt-0.5 size-4 shrink-0 text-brand-purple" />
+                    <p className="leading-relaxed text-foreground/90">{result.rule}</p>
+                  </div>
+                  <p className="rounded-lg bg-background/60 px-3 py-2 text-xs italic text-muted-foreground">
+                    {result.example}
+                  </p>
+                  {result.card_created && (
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Layers className="size-3.5" /> Added to your review deck.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

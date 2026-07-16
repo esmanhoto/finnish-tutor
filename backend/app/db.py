@@ -9,7 +9,9 @@ SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 def _connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    # One connection per request, used sequentially — but FastAPI may run a sync
+    # dependency and its endpoint on different threadpool threads.
+    conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA foreign_keys = ON")
