@@ -1,0 +1,26 @@
+# Secrets & per-user config
+.env
+.env.*
+!.env.example
+
+# Node / frontend
+node_modules/
+frontend/dist/
+*.local
+
+# Python / backend
+__pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+.pytest_cache/
+
+# Local data — never commit user data, cached articles, or dictionary builds
+backend/data/*.sqlite
+backend/data/*.sqlite3
+backend/data/*.db
+backend/data/raw/
+backend/data/dictionary/
+
+# OS / editor
+.DS_Store

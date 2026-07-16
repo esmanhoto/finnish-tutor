@@ -1,0 +1,32 @@
+Finnish Tutor — third-party data and dependency notices
+========================================================
+
+Code license: MIT (see LICENSE).
+
+Dictionary data (built locally, not committed to this repository)
+-----------------------------------------------------------------
+The Finnish→English dictionary used by the reading mode is built from the
+Wiktionary extract published at https://kaikki.org/dictionary/Finnish/
+(Tatu Ylonen: "Wiktextract: Wiktionary as Machine-Readable Structured Data").
+
+Wiktionary content is dual-licensed under CC BY-SA 4.0 and GFDL:
+https://creativecommons.org/licenses/by-sa/4.0/
+The dictionary database you build with backend/scripts/build_dictionary.py is
+therefore CC BY-SA and credited to Wiktionary contributors.
+
+Morphology
+----------
+Voikko (libvoikko + the Finnish morphological dictionary) is used as an
+external dependency (GPL/LGPL/MPL licensed); it is not bundled in this
+repository. See https://voikko.puimula.org/.
+
+Content
+-------
+YLE (Selkouutiset) article text is never stored or committed. The app keeps
+only links plus locally generated exercises. Each user supplies their own YLE
+API key (https://developer.yle.fi/).
+
+Models
+------
+Qwen model weights are pulled by the user via Ollama and carry their own
+license; they are not part of this repository.
