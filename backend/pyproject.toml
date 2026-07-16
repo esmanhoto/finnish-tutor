@@ -1,0 +1,14 @@
+[project]
+name = "finnish-tutor-backend"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.139.2",
+    "fsrs>=6.3.1",
+    "httpx>=0.28.1",
+    "libvoikko>=4.3",
+    "ollama>=0.6.2",
+    "pydantic-settings>=2.14.2",
+    "uvicorn[standard]>=0.51.0",
+]
