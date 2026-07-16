@@ -64,3 +64,31 @@ export const checkDrillAnswer = (item_id: number, answer: string) =>
     method: "POST",
     body: JSON.stringify({ item_id, answer }),
   });
+
+// ---- Review (SRS)
+
+export type ReviewCard = {
+  id: number;
+  front: string;
+  back: string;
+  rule: string | null;
+  example: string | null;
+  source: "drill" | "conversation" | "reading";
+  intervals: { again: string; hard: string; good: string; easy: string };
+};
+
+export type ReviewCounts = {
+  due: number;
+  learning: number;
+  mastered: number;
+  total: number;
+};
+
+export const fetchDueCards = () =>
+  api<{ cards: ReviewCard[]; counts: ReviewCounts }>("/review/due");
+
+export const rateCard = (card_id: number, rating: "again" | "hard" | "good" | "easy") =>
+  api<{ card_id: number; due: string; remaining: number }>("/review/rate", {
+    method: "POST",
+    body: JSON.stringify({ card_id, rating }),
+  });
