@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   MessagesSquare,
   Dumbbell,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { fetchDashboard, type Dashboard } from "@/lib/api";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -23,55 +25,66 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-const today = [
-  {
-    to: "/conversation",
-    icon: MessagesSquare,
-    title: "Talk",
-    fi: "Puhu",
-    description: "Continue your chat about your weekend at Kallio",
-    cta: "Resume conversation",
-    minutes: "8 min",
-  },
-  {
-    to: "/drills",
-    icon: Dumbbell,
-    title: "Drill cases",
-    fi: "Sijamuodot",
-    description: "Partitive singular — 4 of 12 mastered",
-    cta: "Continue drill",
-    minutes: "5 min",
-  },
-  {
-    to: "/reading",
-    icon: BookOpen,
-    title: "Read",
-    fi: "Lue",
-    description: "Selkouutiset: Sähkön hinta laskee ensi viikolla",
-    cta: "Open article",
-    minutes: "6 min",
-  },
-  {
-    to: "/review",
-    icon: Layers,
-    title: "Review",
-    fi: "Kertaa",
-    description: "18 cards are due today from your mistakes",
-    cta: "Start review",
-    minutes: "10 min",
-  },
-] as const;
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 5) return "Hyvää yötä";
+  if (h < 12) return "Hyvää huomenta";
+  if (h < 18) return "Hyvää päivää";
+  return "Hyvää iltaa";
+}
 
-const stats = [
-  { label: "Words learned", value: "312", delta: "+24 this week", spark: [4, 6, 5, 8, 7, 12, 10] },
-  { label: "Cases mastered", value: "9 / 15", delta: "+1 this week", spark: [1, 2, 3, 4, 5, 6, 7] },
-  { label: "Minutes practiced", value: "184", delta: "+42 this week", spark: [12, 18, 14, 22, 30, 28, 38] },
-];
+function todayCards(d: Dashboard | undefined) {
+  return [
+    {
+      to: "/conversation",
+      icon: MessagesSquare,
+      title: "Talk",
+      fi: "Puhu",
+      description: d?.resume.conversation
+        ? `Continue your chat about ${d.resume.conversation.toLowerCase()}`
+        : "Start a conversation with Maija",
+      cta: d?.resume.conversation ? "Resume conversation" : "Start talking",
+      minutes: "8 min",
+    },
+    {
+      to: "/drills",
+      icon: Dumbbell,
+      title: "Drill cases",
+      fi: "Sijamuodot",
+      description: d?.resume.drill
+        ? `${d.resume.drill} needs the most work right now`
+        : "Cases, gradation, harmony, verb types",
+      cta: "Continue drilling",
+      minutes: "5 min",
+    },
+    {
+      to: "/reading",
+      icon: BookOpen,
+      title: "Read",
+      fi: "Lue",
+      description: d?.resume.article ?? "Import an easy-Finnish article to read",
+      cta: d?.resume.article ? "Open article" : "Add an article",
+      minutes: "6 min",
+    },
+    {
+      to: "/review",
+      icon: Layers,
+      title: "Review",
+      fi: "Kertaa",
+      description:
+        d && d.review.due > 0
+          ? `${d.review.due} card${d.review.due === 1 ? "" : "s"} due today from your mistakes`
+          : "No cards due right now — nice work",
+      cta: "Start review",
+      minutes: "10 min",
+    },
+  ] as const;
+}
 
 function Spark({ points }: { points: number[] }) {
   const w = 90;
   const h = 28;
-  const max = Math.max(...points);
+  const max = Math.max(...points, 1);
   const min = Math.min(...points);
   const range = max - min || 1;
   const step = w / (points.length - 1);
@@ -97,6 +110,32 @@ function Spark({ points }: { points: number[] }) {
 }
 
 function Home() {
+  const { data: d } = useQuery({ queryKey: ["dashboard"], queryFn: fetchDashboard });
+
+  const goalPct = d ? Math.min(100, (d.today_minutes / d.goal_minutes) * 100) : 0;
+  const statTiles = d
+    ? [
+        {
+          label: "Words learned",
+          value: `${d.stats.words_learned.value}`,
+          delta: `+${d.stats.words_learned.week} this week`,
+          spark: d.stats.words_learned.spark,
+        },
+        {
+          label: "Cases mastered",
+          value: `${d.stats.cases_mastered.value} / ${d.stats.cases_mastered.total}`,
+          delta: `+${d.stats.cases_mastered.week} this week`,
+          spark: d.stats.cases_mastered.spark,
+        },
+        {
+          label: "Minutes practiced",
+          value: `${d.stats.minutes_practiced.value}`,
+          delta: `+${d.stats.minutes_practiced.week} this week`,
+          spark: d.stats.minutes_practiced.spark,
+        },
+      ]
+    : [];
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
       {/* Hero (shell surface) */}
@@ -106,14 +145,21 @@ function Home() {
           <div className="max-w-xl">
             <Badge className="mb-4 bg-white/15 text-white border-white/25 backdrop-blur hover:bg-white/15">
               <Sparkle className="mr-1.5 size-3" />
-              Intermediate · B1
+              Intermediate · {d?.level ?? "B1"}
             </Badge>
             <h1 className="font-display text-3xl font-bold tracking-tight text-white md:text-5xl">
-              Hyvää huomenta, Eli.
+              {greeting()}, {d?.name ?? "…"}.
             </h1>
             <p className="mt-3 text-base text-white/85 md:text-lg">
-              You're on a <span className="font-semibold text-white">12-day streak</span>. A short
-              conversation and a case drill would keep it going.
+              {d && d.streak > 0 ? (
+                <>
+                  You're on a{" "}
+                  <span className="font-semibold text-white">{d.streak}-day streak</span>. A
+                  short conversation and a case drill would keep it going.
+                </>
+              ) : (
+                <>Start with a short conversation or a case drill to get today going.</>
+              )}
             </p>
           </div>
           <div className="glass-shell flex items-center gap-4 rounded-2xl p-4 text-white">
@@ -122,9 +168,14 @@ function Home() {
             </div>
             <div>
               <div className="text-xs uppercase tracking-wide text-white/70">Today's goal</div>
-              <div className="font-semibold">12 / 20 min</div>
+              <div className="font-semibold">
+                {d?.today_minutes ?? 0} / {d?.goal_minutes ?? 20} min
+              </div>
               <div className="mt-2 h-1.5 w-40 overflow-hidden rounded-full bg-white/15">
-                <div className="h-full w-[60%] rounded-full bg-white" />
+                <div
+                  className="h-full rounded-full bg-white transition-all"
+                  style={{ width: `${goalPct}%` }}
+                />
               </div>
             </div>
           </div>
@@ -138,7 +189,7 @@ function Home() {
           <span className="text-sm text-muted-foreground">Pick where to start</span>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {today.map((item) => {
+          {todayCards(d).map((item) => {
             const Icon = item.icon;
             return (
               <Link
@@ -175,7 +226,7 @@ function Home() {
 
       {/* Weekly + curve */}
       <section className="mt-10 grid gap-4 lg:grid-cols-3">
-        {stats.map((s) => (
+        {statTiles.map((s) => (
           <div key={s.label} className="canvas-card p-5">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{s.label}</span>
@@ -198,8 +249,10 @@ function Home() {
             <div>
               <div className="text-sm text-muted-foreground">Forgetting-curve health</div>
               <div className="mt-1 font-display text-2xl font-semibold">
-                <span className="tabular-nums">18</span>{" "}
-                <span className="text-base font-medium text-muted-foreground">cards due today</span>
+                <span className="tabular-nums">{d?.review.due ?? 0}</span>{" "}
+                <span className="text-base font-medium text-muted-foreground">
+                  cards due today
+                </span>
               </div>
             </div>
             <Link
@@ -211,16 +264,19 @@ function Home() {
           </div>
           <div className="mt-5 grid gap-4 sm:grid-cols-3">
             {[
-              { label: "Due today", value: 18, tone: "text-warning" },
-              { label: "Learning", value: 42, tone: "text-brand-purple" },
-              { label: "Mastered", value: 190, tone: "text-brand-green" },
+              { label: "Due today", value: d?.review.due ?? 0, tone: "text-warning" },
+              { label: "Learning", value: d?.review.learning ?? 0, tone: "text-brand-purple" },
+              { label: "Mastered", value: d?.review.mastered ?? 0, tone: "text-brand-green" },
             ].map((r) => (
               <div key={r.label}>
                 <div className={`font-display text-2xl font-semibold tabular-nums ${r.tone}`}>
                   {r.value}
                 </div>
                 <div className="text-xs text-muted-foreground">{r.label}</div>
-                <Progress value={(r.value / 250) * 100} className="mt-2 h-1.5" />
+                <Progress
+                  value={d && d.review.total > 0 ? (r.value / d.review.total) * 100 : 0}
+                  className="mt-2 h-1.5"
+                />
               </div>
             ))}
           </div>
@@ -230,16 +286,15 @@ function Home() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Type className="size-4" /> Word of the day
           </div>
-          <div className="mt-3 font-display text-3xl font-semibold tracking-tight">sattumalta</div>
-          <div className="mt-1 text-sm text-muted-foreground">by chance, coincidentally</div>
-          <p className="mt-4 rounded-xl bg-muted/60 p-3 text-sm leading-relaxed">
-            <span className="text-foreground">Tapasin hänet kahvilassa aivan </span>
-            <span className="font-semibold text-brand-green">sattumalta</span>
-            <span className="text-foreground">.</span>
-            <span className="mt-1 block text-xs text-muted-foreground">
-              I met her at the café completely by chance.
-            </span>
-          </p>
+          <div className="mt-3 font-display text-3xl font-semibold tracking-tight">
+            {d?.word_of_day.fi ?? "…"}
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground">{d?.word_of_day.en}</div>
+          {d?.word_of_day.example && (
+            <p className="mt-4 rounded-xl bg-muted/60 p-3 text-sm leading-relaxed text-muted-foreground">
+              {d.word_of_day.example}
+            </p>
+          )}
         </div>
       </section>
     </div>

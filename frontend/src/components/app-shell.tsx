@@ -1,5 +1,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { fetchDashboard } from "@/lib/api";
 import {
   Home,
   MessagesSquare,
@@ -38,6 +40,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const { dark, toggle } = useDarkMode();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { data: dashboard } = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: fetchDashboard,
+  });
+  const streak = dashboard?.streak ?? 0;
+  const initials = (dashboard?.name ?? "?")
+    .split(/\s+/)
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <div className="min-h-screen w-full bg-background text-foreground">
@@ -114,8 +127,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="ml-auto flex items-center gap-2">
               <div className="flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3 py-1.5 text-sm">
                 <Flame className="size-4 text-warning" />
-                <span className="font-semibold tabular-nums">12</span>
-                <span className="hidden text-muted-foreground sm:inline">day streak</span>
+                <span className="font-semibold tabular-nums">{streak}</span>
+                <span className="hidden text-muted-foreground sm:inline">
+                  day streak
+                </span>
               </div>
               <Button
                 variant="ghost"
@@ -128,7 +143,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Button>
               <Avatar className="size-9 border border-border/60">
                 <AvatarFallback className="bg-gradient-to-br from-brand-purple to-brand-green text-white text-xs font-semibold">
-                  EK
+                  {initials}
                 </AvatarFallback>
               </Avatar>
             </div>

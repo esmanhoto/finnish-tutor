@@ -51,12 +51,13 @@ async def health() -> dict:
     }
 
 
-from .routers import conversation, drills, reading, review  # noqa: E402
+from .routers import conversation, drills, reading, review, stats  # noqa: E402
 
 api.include_router(conversation.router)
 api.include_router(drills.router)
 api.include_router(reading.router)
 api.include_router(review.router)
+api.include_router(stats.router)
 app.include_router(api)
 
 # Production: serve the built frontend (SPA fallback to index.html).

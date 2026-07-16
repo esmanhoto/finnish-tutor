@@ -11,6 +11,7 @@ short English gloss list, ready for instant lookups.
 
 import argparse
 import json
+import re
 import sqlite3
 import subprocess
 import sys
@@ -25,6 +26,11 @@ RAW_PATH = DATA_DIR / "raw" / "kaikki-finnish.jsonl"
 
 MAX_GLOSSES_PER_SENSE = 1
 MAX_SENSES = 3
+
+_INFLECTION_GLOSS = re.compile(
+    r"^(inflection of|(\w+[ /-])*(singular|plural|form|participle|infinitive) of )",
+    re.IGNORECASE,
+)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS entries (
@@ -69,8 +75,9 @@ def build() -> None:
             glosses: list[str] = []
             for sense in senses[: MAX_SENSES * 2]:
                 for g in (sense.get("glosses") or [])[:MAX_GLOSSES_PER_SENSE]:
-                    # Skip pure cross-reference glosses like "inflection of X".
-                    if g.startswith(("inflection of", "genitive", "partitive", "plural of")):
+                    # Skip pure cross-reference glosses ("inflection of X",
+                    # "ablative singular of Y", …) — they'd shadow real senses.
+                    if _INFLECTION_GLOSS.match(g):
                         continue
                     if g not in glosses:
                         glosses.append(g)

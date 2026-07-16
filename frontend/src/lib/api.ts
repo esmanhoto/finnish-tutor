@@ -179,3 +179,29 @@ export const addWordToReview = (fi: string, en: string, context?: string) =>
     method: "POST",
     body: JSON.stringify({ fi, en, context }),
   });
+
+// ---- Dashboard
+
+export type StatTile = { value: number; week: number; spark: number[]; total?: number };
+
+export type Dashboard = {
+  name: string;
+  level: string;
+  streak: number;
+  today_minutes: number;
+  goal_minutes: number;
+  stats: {
+    words_learned: StatTile;
+    cases_mastered: StatTile;
+    minutes_practiced: StatTile;
+  };
+  review: { due: number; learning: number; mastered: number; total: number };
+  resume: {
+    conversation: string | null;
+    drill: string | null;
+    article: string | null;
+  };
+  word_of_day: { fi: string; en: string; example: string | null };
+};
+
+export const fetchDashboard = () => api<Dashboard>("/stats/dashboard");
