@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Mic,
   Send,
@@ -8,10 +9,18 @@ import {
   ChevronDown,
   BookOpen,
   Check,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import {
+  fetchCurrentConversation,
+  sendChatMessage,
+  startConversation,
+  type Conversation,
+  type Correction,
+} from "@/lib/api";
 
 export const Route = createFileRoute("/conversation")({
   head: () => ({
@@ -23,58 +32,7 @@ export const Route = createFileRoute("/conversation")({
   component: ConversationPage,
 });
 
-type Correction = {
-  original: string;
-  corrected: string;
-  rule: string;
-  explanation: string;
-};
-
-type Message =
-  | { role: "tutor"; fi: string; en: string }
-  | { role: "user"; fi: string; correction?: Correction };
-
 const topics = ["Weekend plans", "Grocery shopping", "Job interview", "Small talk", "Travel"];
-
-const initialMessages: Message[] = [
-  {
-    role: "tutor",
-    fi: "Hei Eli! Mitä teit viime viikonloppuna?",
-    en: "Hi Eli! What did you do last weekend?",
-  },
-  {
-    role: "user",
-    fi: "Minä menin kahvila Kalliossa perjantaina.",
-    correction: {
-      original: "Minä menin kahvila Kalliossa perjantaina.",
-      corrected: "Minä menin kahvilaan Kallioon perjantaina.",
-      rule: "Illative case (-Vn / -h_n) — direction into a place",
-      explanation:
-        "Movement toward a place uses the illative, not the inessive. 'kahvila' → 'kahvilaan' (into the café), 'Kallio' → 'Kallioon' (to Kallio).",
-    },
-  },
-  {
-    role: "tutor",
-    fi: "Ah, mukavaa! Kenen kanssa menit sinne?",
-    en: "Oh, nice! Who did you go there with?",
-  },
-  {
-    role: "user",
-    fi: "Menin ystäväni kanssa. Joimme kahvia ja söi pullaa.",
-    correction: {
-      original: "Joimme kahvia ja söi pullaa.",
-      corrected: "Joimme kahvia ja söimme pullaa.",
-      rule: "Verb agreement — first person plural (me-form)",
-      explanation:
-        "The subject 'we' takes the -mme ending in the past tense. 'syödä' → 'söimme', matching 'joimme' earlier in the sentence.",
-    },
-  },
-  {
-    role: "tutor",
-    fi: "Kuulostaa hyvältä viikonlopulta. Mitä pullaa söit — korvapuustia vai voisilmäpullaa?",
-    en: "Sounds like a great weekend. What kind of bun did you have — cinnamon roll or the one with butter in the middle?",
-  },
-];
 
 function CorrectionCard({ c }: { c: Correction }) {
   const [open, setOpen] = useState(true);
@@ -122,9 +80,66 @@ function CorrectionCard({ c }: { c: Correction }) {
 }
 
 function ConversationPage() {
-  const [messages] = useState<Message[]>(initialMessages);
   const [draft, setDraft] = useState("");
-  const [activeTopic, setActiveTopic] = useState<string>("Weekend plans");
+  const [pendingUserFi, setPendingUserFi] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const { data: conversation, isLoading } = useQuery({
+    queryKey: ["conversation"],
+    queryFn: fetchCurrentConversation,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+
+  const startMutation = useMutation({
+    mutationFn: startConversation,
+    onSuccess: (conv) => queryClient.setQueryData(["conversation"], conv),
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: ({ id, fi }: { id: number; fi: string }) => sendChatMessage(id, fi),
+    onMutate: ({ fi }) => setPendingUserFi(fi),
+    onSuccess: (conv: Conversation) => {
+      queryClient.setQueryData(["conversation"], conv);
+      queryClient.invalidateQueries({ queryKey: ["review-due"] });
+    },
+    onSettled: () => setPendingUserFi(null),
+  });
+
+  const messages = conversation?.messages ?? [];
+  const busy = startMutation.isPending || sendMutation.isPending;
+  const lastUserIdx = messages.reduce(
+    (acc, m, i) => (m.role === "user" ? i : acc),
+    -1,
+  );
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length, pendingUserFi]);
+
+  const send = () => {
+    const fi = draft.trim();
+    if (!fi || busy || !conversation) return;
+    setDraft("");
+    sendMutation.mutate({ id: conversation.id, fi });
+  };
+
+  const sayItAgain = () => {
+    const last = messages[lastUserIdx];
+    if (!last) return;
+    setDraft(last.fi);
+    textareaRef.current?.focus();
+  };
+
+  const pickTopic = (topic: string) => {
+    if (busy) return;
+    // A new topic starts a fresh conversation with a fresh opener.
+    if (!conversation || conversation.topic !== topic) {
+      startMutation.mutate(topic);
+    }
+  };
 
   return (
     <div className="mx-auto flex h-[calc(100vh-4rem)] max-w-4xl flex-col px-4 md:px-8">
@@ -135,46 +150,78 @@ function ConversationPage() {
             <div className="text-xs uppercase tracking-wider text-white/70">Live tutor</div>
             <div className="font-display text-xl font-semibold text-white">Maija · Finnish coach</div>
           </div>
-          <Badge className="border-white/25 bg-white/15 text-white backdrop-blur hover:bg-white/15">
-            Session 24
-          </Badge>
+          {conversation && (
+            <Badge className="border-white/25 bg-white/15 text-white backdrop-blur hover:bg-white/15">
+              {conversation.topic}
+            </Badge>
+          )}
         </div>
       </div>
 
       {/* Transcript (canvas) */}
       <div className="flex-1 overflow-y-auto py-6">
-        <div className="space-y-6">
-          {messages.map((m, i) => (
-            <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
-              <div className={cn("max-w-[85%] space-y-2", m.role === "user" && "text-right")}>
-                {m.role === "tutor" ? (
-                  <div className="inline-flex flex-col items-start gap-1">
-                    <div className="canvas-card px-4 py-3 text-left text-[15px] leading-relaxed">
-                      {m.fi}
-                    </div>
-                    <div className="pl-1 text-xs text-muted-foreground">{m.en}</div>
-                  </div>
-                ) : (
-                  <div className="inline-flex flex-col items-end gap-1">
-                    <div className="rounded-2xl bg-gradient-to-br from-brand-purple to-brand-purple/80 px-4 py-3 text-left text-[15px] leading-relaxed text-white shadow-sm">
-                      {m.fi}
-                    </div>
-                    {i === messages.length - 2 && (
-                      <button className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">
-                        <RotateCcw className="size-3" /> Say it again
-                      </button>
-                    )}
-                    {m.correction && (
-                      <div className="w-full text-left">
-                        <CorrectionCard c={m.correction} />
+        {isLoading ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : !conversation && !startMutation.isPending ? (
+          <div className="canvas-card mx-auto max-w-md p-8 text-center">
+            <div className="font-display text-lg font-semibold">Aloitetaan!</div>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Pick a topic below to start chatting with Maija. She replies in
+              Finnish and corrects your grammar as you go.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {messages.map((m, i) => (
+              <div key={m.id} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
+                <div className={cn("max-w-[85%] space-y-2", m.role === "user" && "text-right")}>
+                  {m.role === "tutor" ? (
+                    <div className="inline-flex flex-col items-start gap-1">
+                      <div className="canvas-card px-4 py-3 text-left text-[15px] leading-relaxed">
+                        {m.fi}
                       </div>
-                    )}
-                  </div>
-                )}
+                      {m.en && <div className="pl-1 text-xs text-muted-foreground">{m.en}</div>}
+                    </div>
+                  ) : (
+                    <div className="inline-flex flex-col items-end gap-1">
+                      <div className="rounded-2xl bg-gradient-to-br from-brand-purple to-brand-purple/80 px-4 py-3 text-left text-[15px] leading-relaxed text-white shadow-sm">
+                        {m.fi}
+                      </div>
+                      {i === lastUserIdx && !busy && (
+                        <button
+                          onClick={sayItAgain}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <RotateCcw className="size-3" /> Say it again
+                        </button>
+                      )}
+                      {m.correction && (
+                        <div className="w-full text-left">
+                          <CorrectionCard c={m.correction} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+            {pendingUserFi && (
+              <div className="flex justify-end">
+                <div className="max-w-[85%] rounded-2xl bg-gradient-to-br from-brand-purple to-brand-purple/80 px-4 py-3 text-left text-[15px] leading-relaxed text-white opacity-70 shadow-sm">
+                  {pendingUserFi}
+                </div>
+              </div>
+            )}
+            {busy && (
+              <div className="flex justify-start">
+                <div className="canvas-card inline-flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" /> Maija miettii…
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+        )}
       </div>
 
       {/* Composer */}
@@ -184,10 +231,11 @@ function ConversationPage() {
           {topics.map((t) => (
             <button
               key={t}
-              onClick={() => setActiveTopic(t)}
+              onClick={() => pickTopic(t)}
+              disabled={busy}
               className={cn(
-                "rounded-full border px-3 py-1 text-xs transition-colors",
-                activeTopic === t
+                "rounded-full border px-3 py-1 text-xs transition-colors disabled:opacity-50",
+                conversation?.topic === t
                   ? "border-brand-purple/60 bg-brand-purple/10 text-foreground"
                   : "border-border/60 text-muted-foreground hover:text-foreground",
               )}
@@ -197,20 +245,30 @@ function ConversationPage() {
           ))}
         </div>
         <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-card p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring">
-          <Button variant="ghost" size="icon" aria-label="Voice input" className="rounded-xl">
+          <Button variant="ghost" size="icon" aria-label="Voice input" className="rounded-xl" disabled>
             <Mic className="size-5" />
           </Button>
           <textarea
+            ref={textareaRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Kirjoita suomeksi…"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            placeholder={conversation ? "Kirjoita suomeksi…" : "Pick a topic to start…"}
             rows={1}
-            className="flex-1 resize-none bg-transparent px-2 py-2 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground"
+            disabled={!conversation || busy}
+            className="flex-1 resize-none bg-transparent px-2 py-2 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-60"
           />
           <Button
             className="rounded-xl bg-gradient-to-br from-brand-purple to-brand-green text-white hover:opacity-95"
             size="icon"
             aria-label="Send"
+            onClick={send}
+            disabled={!conversation || busy || !draft.trim()}
           >
             <Send className="size-4" />
           </Button>

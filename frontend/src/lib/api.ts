@@ -92,3 +92,40 @@ export const rateCard = (card_id: number, rating: "again" | "hard" | "good" | "e
     method: "POST",
     body: JSON.stringify({ card_id, rating }),
   });
+
+// ---- Conversation
+
+export type Correction = {
+  original: string;
+  corrected: string;
+  rule: string;
+  explanation: string;
+};
+
+export type ChatMessage = {
+  id: number;
+  role: "tutor" | "user";
+  fi: string;
+  en: string | null;
+  correction: Correction | null;
+};
+
+export type Conversation = {
+  id: number;
+  topic: string;
+  messages: ChatMessage[];
+};
+
+export const fetchCurrentConversation = () => api<Conversation | null>("/conversation/current");
+
+export const startConversation = (topic: string) =>
+  api<Conversation>("/conversation", {
+    method: "POST",
+    body: JSON.stringify({ topic }),
+  });
+
+export const sendChatMessage = (conversation_id: number, fi: string) =>
+  api<Conversation>("/conversation/message", {
+    method: "POST",
+    body: JSON.stringify({ conversation_id, fi }),
+  });

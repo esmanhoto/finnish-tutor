@@ -51,8 +51,9 @@ async def health() -> dict:
     }
 
 
-from .routers import drills, review  # noqa: E402
+from .routers import conversation, drills, review  # noqa: E402
 
+api.include_router(conversation.router)
 api.include_router(drills.router)
 api.include_router(review.router)
 app.include_router(api)
