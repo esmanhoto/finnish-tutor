@@ -1,0 +1,24 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      # On Apple Silicon, containers have no GPU access — for usable LLM
+      # latency run Ollama on the host instead and use:
+      # - OLLAMA_HOST=http://host.docker.internal:11434
+    volumes:
+      - ./backend/data:/app/backend/data
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama:/root/.ollama
+    # After first start, pull the model once:
+    #   docker compose exec ollama ollama pull qwen3:32b
+
+volumes:
+  ollama:
