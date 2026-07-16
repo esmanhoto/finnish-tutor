@@ -129,3 +129,53 @@ export const sendChatMessage = (conversation_id: number, fi: string) =>
     method: "POST",
     body: JSON.stringify({ conversation_id, fi }),
   });
+
+// ---- Reading
+
+export type ArticleToken = {
+  text: string;
+  lookup?: { base: string; en: string | null; note: string | null };
+  unknown?: boolean;
+};
+
+export type Article = {
+  id: number;
+  title: string;
+  source: string;
+  url: string | null;
+  published: string | null;
+  paragraphs: ArticleToken[][];
+  vocab: { fi: string; en: string }[];
+  questions: string[];
+  read_time: string;
+  word_count: number;
+};
+
+export type WordLookup = {
+  base: string;
+  en: string;
+  note: string | null;
+  llm: boolean;
+};
+
+export const fetchCurrentArticle = () => api<Article | null>("/reading/current");
+
+export const importArticle = (payload: {
+  title: string;
+  text: string;
+  url?: string;
+  source?: string;
+}) =>
+  api<Article>("/reading/import", { method: "POST", body: JSON.stringify(payload) });
+
+export const importSampleArticle = () =>
+  api<Article>("/reading/sample", { method: "POST" });
+
+export const lookupWord = (word: string) =>
+  api<WordLookup>(`/reading/lookup?word=${encodeURIComponent(word)}`);
+
+export const addWordToReview = (fi: string, en: string, context?: string) =>
+  api<{ created: boolean }>("/reading/add-to-review", {
+    method: "POST",
+    body: JSON.stringify({ fi, en, context }),
+  });
