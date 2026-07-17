@@ -175,6 +175,23 @@
     linear-gradient(135deg, color-mix(in oklab, var(--brand-purple) 22%, var(--background)), color-mix(in oklab, var(--brand-green) 14%, var(--background)));
 }
 
+/* In the light theme the brand colours are pale, so white text on the aurora
+   gradient washes out. Deepen the gradient (and the glass panel that sits on
+   it) in light mode so the white text keeps enough contrast. */
+html:not(.dark) .aurora-gradient {
+  background-image:
+    radial-gradient(1200px 500px at 10% -10%, color-mix(in oklab, var(--brand-purple) 92%, black), transparent 62%),
+    radial-gradient(900px 500px at 110% 10%, color-mix(in oklab, var(--brand-green) 78%, black), transparent 58%),
+    linear-gradient(135deg,
+      color-mix(in oklab, var(--brand-purple), black 22%),
+      color-mix(in oklab, var(--brand-green), black 30%));
+}
+
+html:not(.dark) .glass-shell {
+  background: color-mix(in oklab, black 26%, transparent);
+  border: 1px solid color-mix(in oklab, white 22%, transparent);
+}
+
 @utility aurora-text {
   background-image: linear-gradient(100deg, var(--brand-purple), var(--brand-green));
   -webkit-background-clip: text;
