@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Plus, Clock3, Loader2, Check, FileText } from "lucide-react";
+import { ExternalLink, Plus, Clock3, Loader2, Check, FileText, Newspaper } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +11,10 @@ import { cn } from "@/lib/utils";
 import {
   addWordToReview,
   fetchCurrentArticle,
+  fetchYleHeadlines,
   importArticle,
   importSampleArticle,
+  importYleArticle,
   lookupWord,
   type Article,
   type ArticleToken,
@@ -116,13 +118,25 @@ function ImportPanel({ onDone }: { onDone: (a: Article) => void }) {
       importArticle({ title, text, url: url || undefined, source: "Pasted text" }),
     onSuccess: onDone,
   });
-  const busy = sampleMutation.isPending || importMutation.isPending;
+  // Live headlines from Yle Teksti-TV. Fails with 503 when no API key is
+  // configured — in that case we just hide the section.
+  const yleQuery = useQuery({
+    queryKey: ["yle-headlines"],
+    queryFn: fetchYleHeadlines,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  const yleMutation = useMutation({ mutationFn: importYleArticle, onSuccess: onDone });
+  const yleHeadlines = yleQuery.data?.headlines ?? [];
+  const busy =
+    sampleMutation.isPending || importMutation.isPending || yleMutation.isPending;
 
   return (
     <div className="canvas-card mx-auto max-w-2xl p-6 md:p-8">
-      <h1 className="font-display text-2xl font-semibold tracking-tight">Add something to read</h1>
+      <h1 className="font-display text-2xl font-semibold tracking-tight">Today's articles</h1>
       <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-        Paste an easy-Finnish article (e.g. from{" "}
+        Pick a fresh Yle Teksti-TV story below, or paste your own easy-Finnish
+        text (e.g. from{" "}
         <a
           href="https://yle.fi/selkouutiset"
           target="_blank"
@@ -142,6 +156,39 @@ function ImportPanel({ onDone }: { onDone: (a: Article) => void }) {
         </div>
       ) : (
         <>
+          {(yleQuery.isLoading || yleHeadlines.length > 0) && (
+            <div className="mt-6">
+              <div className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+                <Newspaper className="size-4 text-brand-green" />
+                Today from Yle Teksti-TV
+              </div>
+              {yleQuery.isLoading ? (
+                <div className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-3 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin text-brand-purple" />
+                  Loading today's stories…
+                </div>
+              ) : (
+              <div className="space-y-1.5">
+                {yleHeadlines.map((h) => (
+                  <button
+                    key={h.page}
+                    onClick={() => yleMutation.mutate(h.page)}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-background px-3 py-2.5 text-left text-sm transition-colors hover:border-brand-green/60 hover:bg-muted/40"
+                  >
+                    <span className="truncate">{h.title}</span>
+                    <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                      s.{h.page}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              )}
+              <div className="mt-6 mb-1 flex items-center gap-3 text-[11px] uppercase tracking-wider text-muted-foreground">
+                <span className="h-px flex-1 bg-border" /> or paste your own{" "}
+                <span className="h-px flex-1 bg-border" />
+              </div>
+            </div>
+          )}
           <div className="mt-6 space-y-3">
             <Input
               value={title}
@@ -172,7 +219,7 @@ function ImportPanel({ onDone }: { onDone: (a: Article) => void }) {
               Load the sample article
             </Button>
           </div>
-          {(importMutation.isError || sampleMutation.isError) && (
+          {(importMutation.isError || sampleMutation.isError || yleMutation.isError) && (
             <p className="mt-3 text-xs text-destructive">
               Something went wrong preparing the article. Is the backend (and Ollama) running?
             </p>
@@ -185,7 +232,9 @@ function ImportPanel({ onDone }: { onDone: (a: Article) => void }) {
 
 function ReadingPage() {
   const [added, setAdded] = useState<string[]>([]);
-  const [showImport, setShowImport] = useState(false);
+  // Land on the article list ("today's articles" + paste); an article opens
+  // only after the reader picks or prepares one.
+  const [showImport, setShowImport] = useState(true);
   const queryClient = useQueryClient();
 
   const { data: article, isLoading } = useQuery({
@@ -279,7 +328,7 @@ function ReadingPage() {
               onClick={() => setShowImport(true)}
               className="text-sm text-muted-foreground hover:text-foreground"
             >
-              Read something else →
+              Browse or paste an article →
             </button>
           </div>
         </article>

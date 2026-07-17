@@ -8,7 +8,7 @@ error-driven spaced repetition — everything runs on your own machine, for free
 |---|---|
 | **Conversation** | Chat in Finnish with "Maija" (local LLM). Every grammar mistake gets an inline correction card with a plain-English rule — and becomes a review card. |
 | **Drills** | Cases, consonant gradation, vowel harmony, verb types. Answers are checked by **Voikko** (rule-based analyzer) — deterministic, never hallucinated. Mistakes become review cards. |
-| **Reading** | Paste an easy-Finnish article (e.g. Yle Selkouutiset). Every word is tap-to-translate (Voikko lemma + bundled Wiktionary dictionary), with LLM-generated vocabulary and comprehension questions, cached forever. |
+| **Reading** | Pick a live news story from **Yle Teksti-TV** (with an API key) or paste your own easy-Finnish article (e.g. Yle Selkouutiset). Every word is tap-to-translate (Voikko lemma + bundled Wiktionary dictionary), with LLM-generated vocabulary and comprehension questions, cached forever. |
 | **Review** | FSRS spaced repetition over cards generated from *your own mistakes*. |
 | **Home** | Streak, daily goal, mastery stats — all computed from real usage. |
 
@@ -76,7 +76,7 @@ Docker is slow. Prefer running Ollama on the host and pointing the app at it
 |---|---|---|
 | `OLLAMA_MODEL` | `qwen3:32b` | `qwen3:8b` is much faster on modest hardware |
 | `OLLAMA_HOST` | `http://localhost:11434` | |
-| `YLE_APP_ID` / `YLE_APP_KEY` | empty | Optional — register your own at [developer.yle.fi](https://developer.yle.fi/). Without a key, paste article text manually. |
+| `YLE_APP_ID` / `YLE_APP_KEY` | empty | Optional — register your own at [developer.yle.fi](https://developer.yle.fi/). With a key, Reading lists today's headlines from Yle Teksti-TV (the only endpoint Yle's public API still serves). Without one, paste article text manually. |
 | `USER_NAME` / `LEVEL` / `DAILY_GOAL_MINUTES` | `Eduardo` / `B1` / `20` | Level is a soft setting that tunes the tutor's register |
 | `VOIKKO_DICT_PATH` | empty | Only if libvoikko can't find a system dictionary |
 

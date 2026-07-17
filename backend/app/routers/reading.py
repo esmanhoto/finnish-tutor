@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..db import get_db
-from ..services import dictionary, llm, reading, srs
+from ..services import dictionary, llm, reading, srs, yle
 
 router = APIRouter(prefix="/reading", tags=["reading"])
 
@@ -79,6 +79,33 @@ def import_sample(db: sqlite3.Connection = Depends(get_db)) -> dict:
             text=sample["text"],
             url=sample["url"],
             source=sample["source"],
+        ),
+        db,
+    )
+
+
+@router.get("/yle/headlines")
+def yle_headlines() -> dict:
+    """Today's Yle Teletext news headlines, each with its page number."""
+    if not yle.configured():
+        raise HTTPException(503, "No Yle API key configured")
+    return {"headlines": yle.headlines()}
+
+
+@router.post("/yle/{page}")
+def import_yle(page: int, db: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Fetch a Yle Teletext news page and import it as a reading article."""
+    if not yle.configured():
+        raise HTTPException(503, "No Yle API key configured")
+    art = yle.article(page)
+    if art is None:
+        raise HTTPException(502, "Could not fetch that Yle Teletext page")
+    return _import_article(
+        ImportRequest(
+            title=art["title"],
+            text=art["text"],
+            url=f"https://yle.fi/tekstitv/txt/{page}.html",
+            source="Yle Teksti-TV",
         ),
         db,
     )

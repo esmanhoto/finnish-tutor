@@ -171,6 +171,14 @@ export const importArticle = (payload: {
 export const importSampleArticle = () =>
   api<Article>("/reading/sample", { method: "POST" });
 
+export type YleHeadline = { page: number; title: string };
+
+export const fetchYleHeadlines = () =>
+  api<{ headlines: YleHeadline[] }>("/reading/yle/headlines");
+
+export const importYleArticle = (page: number) =>
+  api<Article>(`/reading/yle/${page}`, { method: "POST" });
+
 export const lookupWord = (word: string) =>
   api<WordLookup>(`/reading/lookup?word=${encodeURIComponent(word)}`);
 
