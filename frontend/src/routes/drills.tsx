@@ -12,6 +12,23 @@ import {
   type DrillCheckResult,
 } from "@/lib/api";
 
+// A short reminder of each category's ending(s), shown beside the name so you
+// don't have to remember which case is which.
+const CATEGORY_ENDINGS: Record<string, string> = {
+  partitive: "-a/-ä · -ta/-tä",
+  genitive: "-n",
+  inessive: "-ssa/-ssä",
+  elative: "-sta/-stä",
+  illative: "-Vn · -seen",
+  adessive: "-lla/-llä",
+  ablative: "-lta/-ltä",
+  allative: "-lle",
+  gradation: "weak grade",
+  harmony: "front ↔ back",
+  verb1: "type 1 verb",
+  verb3: "type 3 verb",
+};
+
 export const Route = createFileRoute("/drills")({
   head: () => ({
     meta: [
@@ -101,6 +118,20 @@ function DrillsPage() {
     setIdx((i) => i + 1);
   };
 
+  // Once a result is showing, Enter advances to the next prompt (the input is
+  // disabled, so the form's own submit no longer fires).
+  useEffect(() => {
+    if (status === "idle") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        next();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [status]);
+
   const restart = () => {
     void newSession();
   };
@@ -141,6 +172,11 @@ function DrillsPage() {
               <div>
                 <div className="text-sm font-medium leading-tight">{c.label}</div>
                 <div className="text-[11px] text-muted-foreground">{c.fi}</div>
+                {CATEGORY_ENDINGS[c.key] && (
+                  <div className="mt-0.5 font-mono text-[11px] text-brand-purple/80">
+                    {CATEGORY_ENDINGS[c.key]}
+                  </div>
+                )}
               </div>
             </button>
           ))}
@@ -182,6 +218,11 @@ function DrillsPage() {
             <div className="text-center">
               <div className="text-xs font-medium uppercase tracking-wider text-brand-purple">
                 {item.target} · {item.target_fi}
+                {CATEGORY_ENDINGS[category] && (
+                  <span className="ml-2 font-mono normal-case text-brand-purple/80">
+                    ({CATEGORY_ENDINGS[category]})
+                  </span>
+                )}
               </div>
               <div className="mt-3 font-display text-5xl font-semibold tracking-tight md:text-6xl">
                 {item.base}
