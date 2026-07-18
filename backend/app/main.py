@@ -69,4 +69,9 @@ if FRONTEND_DIST.exists():
         file = FRONTEND_DIST / path
         if path and file.is_file():
             return FileResponse(file)
-        return FileResponse(FRONTEND_DIST / "index.html")
+        # index.html maps to the current hashed asset chunks, so it must always
+        # be revalidated — otherwise a rebuild won't show up on a normal refresh.
+        return FileResponse(
+            FRONTEND_DIST / "index.html",
+            headers={"Cache-Control": "no-cache"},
+        )
