@@ -1,8 +1,32 @@
-# Finnish Tutor (Suomi)
+<h1 align="center">🇫🇮 Finnish Tutor <sub><i>· Suomi</i></sub></h1>
 
-A local-first, single-user web app to break the intermediate plateau in Finnish.
-Conversation with an AI tutor, morphology drills, easy-Finnish reading, and
-error-driven spaced repetition — everything runs on your own machine, for free.
+<p align="center">
+  A calm, <b>local-first</b> web app to break the intermediate plateau in Finnish —
+  AI conversation, morphology drills, easy-Finnish reading, and error-driven
+  spaced repetition. Everything runs on your own machine, for free.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/License-MIT-3fb950.svg" alt="License: MIT">
+  <img src="https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white" alt="Python 3.12+">
+  <img src="https://img.shields.io/badge/React-Vite-61DAFB?logo=react&logoColor=black" alt="React + Vite">
+  <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/LLM-local%20via%20Ollama-000000?logo=ollama&logoColor=white" alt="Local LLM via Ollama">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/home.jpg" alt="Home dashboard — greeting, daily goal, and today's suggested activities" width="100%">
+</p>
+
+## ✨ Highlights
+
+- 🗣️ **Talk to Maija** — free-form Finnish chat; every mistake becomes an inline correction with a plain-English rule.
+- 🎯 **Deterministic drills** — cases, gradation, harmony, and verb types checked by **Voikko**, not the LLM, so answers are never hallucinated.
+- 📰 **Read today's news** — pull a live story from **Yle Teksti-TV** or paste your own text; every word is tap-to-translate.
+- 🔁 **Spaced repetition that's actually yours** — review cards are generated from *your own* mistakes, scheduled with FSRS.
+- 🔒 **Local-first & private** — a local LLM (Ollama) + Voikko; no cloud API, no keys required, zero cost.
+
+## The five screens
 
 | Screen | What it does |
 |---|---|
@@ -11,6 +35,17 @@ error-driven spaced repetition — everything runs on your own machine, for free
 | **Reading** | Pick a live news story from **Yle Teksti-TV** (with an API key) or paste your own easy-Finnish article (e.g. Yle Selkouutiset). Every word is tap-to-translate (Voikko lemma + bundled Wiktionary dictionary), with LLM-generated vocabulary and comprehension questions, cached forever. |
 | **Review** | FSRS spaced repetition over cards generated from *your own mistakes*. |
 | **Home** | Streak, daily goal, mastery stats — all computed from real usage. |
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/conversation.jpg" alt="Conversation with inline grammar correction"><br><sub><b>Conversation</b> — inline corrections with a plain-English rule</sub></td>
+    <td width="50%"><img src="docs/screenshots/drills.jpg" alt="Morphology drills with case endings and mastery rings"><br><sub><b>Drills</b> — Voikko-checked, with mastery rings per case</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/reading.jpg" alt="Reading — today's Yle Teksti-TV headlines"><br><sub><b>Reading</b> — today's Yle Teksti-TV stories, or paste your own</sub></td>
+    <td width="50%" valign="middle"><sub>Light and dark themes throughout. All progress — streaks, mastery, review scheduling — is computed from real usage in a local SQLite database.</sub></td>
+  </tr>
+</table>
 
 ## Architecture
 
