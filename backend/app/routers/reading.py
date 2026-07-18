@@ -52,13 +52,46 @@ def current(db: sqlite3.Connection = Depends(get_db)) -> dict | None:
     return _article_row(row) if row else None
 
 
+@router.get("/articles")
+def list_articles(limit: int = 20, db: sqlite3.Connection = Depends(get_db)) -> list[dict]:
+    """Recently read articles, newest first — lightweight (no derived payload)."""
+    rows = db.execute(
+        "SELECT id, title, source, url, created_at FROM articles ORDER BY id DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+@router.get("/articles/{article_id}")
+def get_article(article_id: int, db: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Reopen a previously imported article instantly from the cache."""
+    row = db.execute("SELECT * FROM articles WHERE id = ?", (article_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, "Article not found")
+    return _article_row(row)
+
+
 def _import_article(req: ImportRequest, db: sqlite3.Connection) -> dict:
     if not req.text.strip() or not req.title.strip():
         raise HTTPException(422, "Title and text are required")
-    derived = reading.derive(req.title.strip(), req.text.strip(), db)
+    title = req.title.strip()
+    source = req.source or "Pasted text"
+    # Reuse an already-imported identical article (same source + title + url)
+    # instead of re-running the LLM and piling up duplicate rows. Teletext pages
+    # rotate, so a genuinely new story on the same page has a new title and
+    # still imports fresh.
+    existing = db.execute(
+        "SELECT * FROM articles WHERE source = ? AND title = ? "
+        "AND IFNULL(url, '') = IFNULL(?, '') ORDER BY id DESC LIMIT 1",
+        (source, title, req.url),
+    ).fetchone()
+    if existing:
+        db.execute("INSERT INTO activity_log (kind, seconds) VALUES ('reading', 60)")
+        return _article_row(existing)
+    derived = reading.derive(title, req.text.strip(), db)
     cur = db.execute(
         "INSERT INTO articles (url, source, title, derived) VALUES (?, ?, ?, ?)",
-        (req.url, req.source or "Pasted text", req.title.strip(), json.dumps(derived)),
+        (req.url, source, title, json.dumps(derived)),
     )
     db.execute("INSERT INTO activity_log (kind, seconds) VALUES ('reading', 180)")
     row = db.execute("SELECT * FROM articles WHERE id = ?", (cur.lastrowid,)).fetchone()
@@ -104,7 +137,7 @@ def import_yle(page: int, db: sqlite3.Connection = Depends(get_db)) -> dict:
         ImportRequest(
             title=art["title"],
             text=art["text"],
-            url=f"https://yle.fi/tekstitv/txt/{page}.html",
+            url=f"https://yle.fi/aihe/tekstitv?P={page}",
             source="Yle Teksti-TV",
         ),
         db,

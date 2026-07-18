@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Plus, Clock3, Loader2, Check, FileText, Newspaper } from "lucide-react";
+import { ExternalLink, Plus, Clock3, Loader2, Check, FileText, Newspaper, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,10 +11,12 @@ import { cn } from "@/lib/utils";
 import {
   addWordToReview,
   fetchCurrentArticle,
+  fetchRecentArticles,
   fetchYleHeadlines,
   importArticle,
   importSampleArticle,
   importYleArticle,
+  openArticle,
   lookupWord,
   type Article,
   type ArticleToken,
@@ -128,8 +130,21 @@ function ImportPanel({ onDone }: { onDone: (a: Article) => void }) {
   });
   const yleMutation = useMutation({ mutationFn: importYleArticle, onSuccess: onDone });
   const yleHeadlines = yleQuery.data?.headlines ?? [];
+
+  // Previously imported articles — reopen instantly from cache, no re-derive.
+  const recentQuery = useQuery({
+    queryKey: ["recent-articles"],
+    queryFn: fetchRecentArticles,
+    staleTime: 60 * 1000,
+  });
+  const openMutation = useMutation({ mutationFn: openArticle, onSuccess: onDone });
+  const recent = recentQuery.data ?? [];
+
   const busy =
-    sampleMutation.isPending || importMutation.isPending || yleMutation.isPending;
+    sampleMutation.isPending ||
+    importMutation.isPending ||
+    yleMutation.isPending ||
+    openMutation.isPending;
 
   return (
     <div className="canvas-card mx-auto max-w-2xl p-6 md:p-8">
@@ -219,10 +234,34 @@ function ImportPanel({ onDone }: { onDone: (a: Article) => void }) {
               Load the sample article
             </Button>
           </div>
-          {(importMutation.isError || sampleMutation.isError || yleMutation.isError) && (
+          {(importMutation.isError ||
+            sampleMutation.isError ||
+            yleMutation.isError ||
+            openMutation.isError) && (
             <p className="mt-3 text-xs text-destructive">
               Something went wrong preparing the article. Is the backend (and Ollama) running?
             </p>
+          )}
+
+          {recent.length > 0 && (
+            <div className="mt-8 border-t border-border/60 pt-6">
+              <div className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+                <History className="size-4 text-muted-foreground" />
+                Recently read
+              </div>
+              <div className="space-y-1.5">
+                {recent.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => openMutation.mutate(a.id)}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-background px-3 py-2.5 text-left text-sm transition-colors hover:border-brand-purple/60 hover:bg-muted/40"
+                  >
+                    <span className="truncate">{a.title}</span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">{a.source}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </>
       )}
@@ -255,6 +294,7 @@ function ReadingPage() {
 
   const onImported = (a: Article) => {
     queryClient.setQueryData(["article"], a);
+    queryClient.invalidateQueries({ queryKey: ["recent-articles"] });
     setShowImport(false);
     setAdded([]);
   };

@@ -179,6 +179,20 @@ export const fetchYleHeadlines = () =>
 export const importYleArticle = (page: number) =>
   api<Article>(`/reading/yle/${page}`, { method: "POST" });
 
+export type ArticleSummary = {
+  id: number;
+  title: string;
+  source: string;
+  url: string | null;
+  created_at: string;
+};
+
+export const fetchRecentArticles = () =>
+  api<ArticleSummary[]>("/reading/articles");
+
+export const openArticle = (id: number) =>
+  api<Article>(`/reading/articles/${id}`);
+
 export const lookupWord = (word: string) =>
   api<WordLookup>(`/reading/lookup?word=${encodeURIComponent(word)}`);
 
