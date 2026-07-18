@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, X, ArrowRight, Sparkles, Lightbulb, RotateCcw, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,7 @@ function DrillsPage() {
   const [result, setResult] = useState<DrillCheckResult | null>(null);
   const [showHint, setShowHint] = useState(false);
   const [streak, setStreak] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   const { data: categories } = useQuery({
@@ -117,6 +118,12 @@ function DrillsPage() {
     setShowHint(false);
     setIdx((i) => i + 1);
   };
+
+  // Keep focus in the input on every fresh prompt so the whole drill is
+  // keyboard-only — advancing with Enter would otherwise leave focus behind.
+  useEffect(() => {
+    if (status === "idle") inputRef.current?.focus();
+  }, [idx, status]);
 
   // Once a result is showing, Enter advances to the next prompt (the input is
   // disabled, so the form's own submit no longer fires).
@@ -240,6 +247,7 @@ function DrillsPage() {
                 )}
               >
                 <input
+                  ref={inputRef}
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
                   disabled={status !== "idle"}
